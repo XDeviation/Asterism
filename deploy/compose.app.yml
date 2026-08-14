@@ -1,0 +1,32 @@
+services:
+  app:
+    build:
+      context: ..
+      dockerfile: deploy/app.Dockerfile
+    restart: unless-stopped
+    env_file: .env.app
+    environment:
+      HOST: 0.0.0.0
+      PORT: 3000
+      DATABASE_PATH: /app/data/asterism.sqlite
+      WEB_DIST_DIR: /app/apps/web/dist
+      TRUST_PROXY: "1"
+    ports:
+      - "127.0.0.1:3000:3000"
+    volumes:
+      - app-data:/app/data
+
+  room:
+    build:
+      context: ..
+      dockerfile: deploy/room.Dockerfile
+    restart: unless-stopped
+    env_file: .env.app
+    environment:
+      HOST: 0.0.0.0
+      PORT: 3002
+    ports:
+      - "127.0.0.1:3002:3002"
+
+volumes:
+  app-data:

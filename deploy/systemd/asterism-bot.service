@@ -1,0 +1,30 @@
+[Unit]
+Description=Asterism Discord Bot
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+User=asterism-bot
+Group=asterism-bot
+WorkingDirectory=/opt/asterism-bot
+Environment=NODE_ENV=production
+EnvironmentFile=/etc/asterism/bot.env
+ExecStart=/usr/bin/node /opt/asterism-bot/apps/bot/dist/index.js
+Restart=on-failure
+RestartSec=5s
+UMask=0077
+
+NoNewPrivileges=true
+PrivateDevices=true
+PrivateTmp=true
+ProtectControlGroups=true
+ProtectHome=true
+ProtectKernelModules=true
+ProtectKernelTunables=true
+ProtectSystem=strict
+ReadWritePaths=/var/lib/asterism-bot
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+
+[Install]
+WantedBy=multi-user.target

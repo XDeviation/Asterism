@@ -1,0 +1,37 @@
+{
+  "name": "asterism",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "overrides": {
+    "@excalidraw/excalidraw": {
+      "nanoid": "3.3.18"
+    },
+    "@excalidraw/mermaid-to-excalidraw": {
+      "nanoid": "5.1.16"
+    },
+    "lodash-es": "4.18.1"
+  },
+  "scripts": {
+    "build": "npm run build --workspace @asterism/shared && npm run build --workspace @asterism/web && npm run build --workspace @asterism/app && npm run build --workspace @asterism/bot && npm run build --workspace @asterism/room",
+    "typecheck": "npm run typecheck --workspace @asterism/shared && npm run typecheck --workspace @asterism/web && npm run typecheck --workspace @asterism/app && npm run typecheck --workspace @asterism/bot && npm run typecheck --workspace @asterism/room",
+    "test": "npm run build --workspace @asterism/shared && npm run test --workspaces --if-present",
+    "dev:app": "npm run dev --workspace @asterism/app",
+    "dev:bot": "npm run dev --workspace @asterism/bot",
+    "dev:room": "npm run start --workspace @asterism/room",
+    "dev:web": "npm run dev --workspace @asterism/web",
+    "hash-password": "node scripts/hash-password.mjs"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.0",
+    "typescript": "^5.8.3",
+    "vitest": "^3.1.2"
+  }
+}

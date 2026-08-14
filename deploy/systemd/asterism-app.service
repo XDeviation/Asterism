@@ -1,0 +1,46 @@
+[Unit]
+Description=Asterism Puzzle Hunt app
+After=network.target
+
+[Service]
+Type=simple
+User=asterism-app
+Group=asterism-app
+WorkingDirectory=/opt/asterism/current
+Environment=NODE_ENV=production
+EnvironmentFile=/etc/asterism/app.env
+ExecStart=/usr/bin/node /opt/asterism/current/apps/app/dist/index.js
+Restart=on-failure
+RestartSec=3s
+TimeoutStopSec=20s
+StateDirectory=asterism-app
+StateDirectoryMode=0700
+UMask=0077
+
+NoNewPrivileges=true
+PrivateDevices=true
+PrivateTmp=true
+ProtectClock=true
+ProtectControlGroups=true
+ProtectHome=true
+ProtectKernelLogs=true
+ProtectKernelModules=true
+ProtectKernelTunables=true
+ProtectProc=invisible
+ProtectSystem=strict
+ProcSubset=pid
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+RestrictNamespaces=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+LockPersonality=true
+CapabilityBoundingSet=
+AmbientCapabilities=
+IPAddressDeny=any
+IPAddressAllow=localhost
+LimitNOFILE=65536
+TasksMax=256
+MemoryMax=768M
+
+[Install]
+WantedBy=multi-user.target

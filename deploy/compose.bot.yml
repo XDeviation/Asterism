@@ -1,0 +1,15 @@
+services:
+  bot:
+    build:
+      context: ..
+      dockerfile: deploy/bot.Dockerfile
+    restart: unless-stopped
+    env_file: .env.bot
+    environment:
+      BOT_DATABASE_PATH: /app/data/bot.sqlite
+    volumes:
+      - bot-data:/app/data
+
+volumes:
+  bot-data:
+
