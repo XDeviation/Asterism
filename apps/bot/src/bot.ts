@@ -153,6 +153,7 @@ export class AsterismBot {
 
     await this.runMaintenance();
     await this.refreshImageUrls();
+    void this.backfillData();
     this.#maintenanceTimer = setInterval(() => void this.runMaintenance(), 5 * 60_000);
     this.#maintenanceTimer.unref();
     this.#imageTimer = setInterval(
@@ -302,6 +303,27 @@ export class AsterismBot {
       `/api/internal/boards/${encodeURIComponent(boardId)}/messages/${message.id}`,
     );
     void this.outbox.drain();
+  }
+
+  private async backfillData(): Promise<void> {
+    for (const guild of this.client.guilds.cache.values()) {
+      if (guild.id !== this.config.guildId) continue;
+      await this.api.syncGuild(guild.id, guild.name).catch(console.error);
+      const channels = await guild.channels.fetch().catch(console.error);
+      if (!channels) continue;
+      for (const channel of channels.values()) {
+        if (!channel) continue;
+        if (channel.type === ChannelType.GuildCategory) {
+          await this.api.syncCategory(guild.id, channel.id, channel.name).catch(console.error);
+        } else if (isSyncableChannel(channel)) {
+          const boardId = this.database.getBoardId(guild.id, channel.id);
+          if (boardId) {
+            const categoryId = channel.parent?.type === ChannelType.GuildCategory ? channel.parent.id : null;
+            await this.api.syncChannel(guild.id, categoryId, channel.id, boardId, channel.name).catch(console.error);
+          }
+        }
+      }
+    }
   }
 
   private async runMaintenance(): Promise<void> {

@@ -835,6 +835,11 @@ export class AppDatabase {
     return row ? puzzleFromRow(row) : null;
   }
 
+  getPuzzleByBoardId(boardId: string): PuzzleRecord | null {
+    const row = this.db.prepare("SELECT * FROM puzzles WHERE board_id = ?").get(boardId) as PuzzleRow | undefined;
+    return row ? puzzleFromRow(row) : null;
+  }
+
   updatePuzzle(
     id: string,
     updates: {

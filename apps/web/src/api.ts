@@ -142,3 +142,13 @@ export async function updatePuzzle(
 export async function getPuzzle(puzzleId: string): Promise<PuzzleDetail> {
   return request<PuzzleDetail>(`/api/puzzles/${encodeURIComponent(puzzleId)}`);
 }
+
+export async function getPuzzleIdByBoard(boardId: string): Promise<string | null> {
+  try {
+    const result = await request<{ puzzleId: string }>(`/api/internal/puzzles/by-board/${encodeURIComponent(boardId)}`);
+    return result.puzzleId;
+  } catch (error) {
+    if (error instanceof ApiRequestError && error.status === 404) return null;
+    throw error;
+  }
+}

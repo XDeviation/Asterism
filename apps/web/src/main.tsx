@@ -1,6 +1,6 @@
 import { lazy, StrictMode, Suspense, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { ApiRequestError, getSession } from "./api.js";
+import { ApiRequestError, getSession, getPuzzleIdByBoard } from "./api.js";
 import { HomeScreen } from "./screens/HomeScreen.js";
 import { LoginScreen } from "./screens/LoginScreen.js";
 import "./styles.css";
@@ -25,6 +25,36 @@ const PuzzleScreen = lazy(async () => ({
   default: (await import("./screens/PuzzleScreen.js")).PuzzleScreen,
 }));
 
+function BoardRoute({ boardId, onUnauthorized }: { boardId: string; onUnauthorized: () => void }) {
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    getPuzzleIdByBoard(boardId)
+      .then((puzzleId) => {
+        if (puzzleId) {
+          window.location.replace(`/puzzles/${puzzleId}`);
+        } else {
+          setLoading(false);
+        }
+      })
+      .catch((error) => {
+        if (error instanceof ApiRequestError && error.status === 401) {
+          onUnauthorized();
+        } else {
+          setLoading(false);
+        }
+      });
+  }, [boardId, onUnauthorized]);
+
+  if (loading) return <div className="loading">正在加载…</div>;
+
+  return (
+    <Suspense fallback={<div className="loading">正在加载画布组件…</div>}>
+      <BoardScreen boardId={boardId} onUnauthorized={onUnauthorized} />
+    </Suspense>
+  );
+}
+
 function App() {
   const [authenticated, setAuthenticated] = useState<boolean | null>(null);
   const [fatalError, setFatalError] = useState<string | null>(null);
@@ -46,12 +76,10 @@ function App() {
   const boardMatch = /^\/boards\/([^/]+)$/.exec(window.location.pathname);
   if (boardMatch?.[1]) {
     return (
-      <Suspense fallback={<div className="loading">正在加载画布组件…</div>}>
-        <BoardScreen
-          boardId={decodeURIComponent(boardMatch[1])}
-          onUnauthorized={() => setAuthenticated(false)}
-        />
-      </Suspense>
+      <BoardRoute
+        boardId={decodeURIComponent(boardMatch[1])}
+        onUnauthorized={() => setAuthenticated(false)}
+      />
     );
   }
   const puzzleMatch = /^\/puzzles\/([^/]+)$/.exec(window.location.pathname);

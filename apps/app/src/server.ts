@@ -388,6 +388,14 @@ export async function buildServer(config: AppConfig): Promise<FastifyInstance> {
     return overview;
   });
 
+  app.get("/api/internal/puzzles/by-board/:boardId", async (request, reply) => {
+    if (!requireBrowserSession(request, reply, config)) return;
+    const { boardId } = request.params as { boardId: string };
+    const puzzle = database.getPuzzleByBoardId(boardId);
+    if (!puzzle) return reply.code(404).send({ error: "puzzle_not_found" });
+    return { puzzleId: puzzle.id };
+  });
+
   app.get("/api/puzzles/:puzzleId", async (request, reply) => {
     if (!requireBrowserSession(request, reply, config)) return;
     const { puzzleId } = request.params as { puzzleId: string };
