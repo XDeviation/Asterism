@@ -8,6 +8,7 @@ import type {
   PuzzleRecord,
   PuzzleStatus,
   HuntOverview,
+  PuzzleDetail,
 } from "@asterism/shared";
 
 export class ApiRequestError extends Error {
@@ -136,4 +137,8 @@ export async function updatePuzzle(
     },
   );
   return result.puzzle;
+}
+
+export async function getPuzzle(puzzleId: string): Promise<PuzzleDetail> {
+  return request<PuzzleDetail>(`/api/puzzles/${encodeURIComponent(puzzleId)}`);
 }

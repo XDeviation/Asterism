@@ -393,7 +393,10 @@ export async function buildServer(config: AppConfig): Promise<FastifyInstance> {
     const { puzzleId } = request.params as { puzzleId: string };
     const puzzle = database.getPuzzle(puzzleId);
     if (!puzzle) return reply.code(404).send({ error: "puzzle_not_found" });
-    return { puzzle };
+    const category = puzzle.categoryId ? database.getCategory(puzzle.categoryId) : null;
+    const hunt = database.getHunt(puzzle.huntId);
+    if (!hunt) return reply.code(404).send({ error: "puzzle_not_found" });
+    return { puzzle, category, hunt };
   });
 
   app.patch("/api/puzzles/:puzzleId", async (request, reply) => {

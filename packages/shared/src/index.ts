@@ -34,6 +34,12 @@ export interface HuntOverview {
   categories: Array<{ category: CategoryRecord | null; puzzles: PuzzleRecord[] }>;
 }
 
+export interface PuzzleDetail {
+  puzzle: PuzzleRecord;
+  category: CategoryRecord | null;
+  hunt: HuntRecord;
+}
+
 export interface BoardIdentity {
   guildId: string;
   guildName: string;

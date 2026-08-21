@@ -21,6 +21,10 @@ const HuntScreen = lazy(async () => ({
   default: (await import("./screens/HuntScreen.js")).HuntScreen,
 }));
 
+const PuzzleScreen = lazy(async () => ({
+  default: (await import("./screens/PuzzleScreen.js")).PuzzleScreen,
+}));
+
 function App() {
   const [authenticated, setAuthenticated] = useState<boolean | null>(null);
   const [fatalError, setFatalError] = useState<string | null>(null);
@@ -45,6 +49,17 @@ function App() {
       <Suspense fallback={<div className="loading">正在加载画布组件…</div>}>
         <BoardScreen
           boardId={decodeURIComponent(boardMatch[1])}
+          onUnauthorized={() => setAuthenticated(false)}
+        />
+      </Suspense>
+    );
+  }
+  const puzzleMatch = /^\/puzzles\/([^/]+)$/.exec(window.location.pathname);
+  if (puzzleMatch?.[1]) {
+    return (
+      <Suspense fallback={<div className="loading">正在加载题目白板组件…</div>}>
+        <PuzzleScreen
+          puzzleId={decodeURIComponent(puzzleMatch[1])}
           onUnauthorized={() => setAuthenticated(false)}
         />
       </Suspense>

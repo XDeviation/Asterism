@@ -728,6 +728,11 @@ export class AppDatabase {
     return row ? huntFromRow(row) : null;
   }
 
+  getCategory(id: string): CategoryRecord | null {
+    const row = this.db.prepare("SELECT * FROM categories WHERE id = ?").get(id) as CategoryRow | undefined;
+    return row ? categoryFromRow(row) : null;
+  }
+
   getHuntOverview(huntId: string): HuntOverview | null {
     const hunt = this.getHunt(huntId);
     if (!hunt) return null;

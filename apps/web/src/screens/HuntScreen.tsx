@@ -163,7 +163,7 @@ export function HuntScreen({
                           </td>
                           <td>
                             {puzzle.boardId ? (
-                              <a href={`/boards/${puzzle.boardId}`} className="board-link" target="_blank" rel="noreferrer">进入白板 ↗</a>
+                              <a href={`/puzzles/${puzzle.id}`} className="board-link" target="_blank" rel="noreferrer">进入白板 ↗</a>
                             ) : (
                               <span className="muted">(未创建白板)</span>
                             )}
