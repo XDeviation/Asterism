@@ -16,6 +16,7 @@ import type {
   RefreshImagesRequest,
   SyncedImage,
   SyncedMessage,
+  PuzzleStatus,
 } from "@asterism/shared";
 import {
   clearSessionCookie,
@@ -372,6 +373,138 @@ export async function buildServer(config: AppConfig): Promise<FastifyInstance> {
       clearInterval(heartbeat);
       unsubscribe();
     });
+  });
+
+  app.get("/api/hunts", async (request, reply) => {
+    if (!requireBrowserSession(request, reply, config)) return;
+    return { hunts: database.listHunts() };
+  });
+
+  app.post("/api/hunts", async (request, reply) => {
+    if (!requireBrowserSession(request, reply, config)) return;
+    const body = request.body as Record<string, unknown> | null;
+    const name = requiredString(body?.name, "name");
+    const hunt = database.createHunt(name);
+    return { hunt };
+  });
+
+  app.get("/api/hunts/:huntId", async (request, reply) => {
+    if (!requireBrowserSession(request, reply, config)) return;
+    const { huntId } = request.params as { huntId: string };
+    const overview = database.getHuntOverview(huntId);
+    if (!overview) return reply.code(404).send({ error: "hunt_not_found" });
+    return overview;
+  });
+
+  app.delete("/api/hunts/:huntId", async (request, reply) => {
+    if (!requireBrowserSession(request, reply, config)) return;
+    const { huntId } = request.params as { huntId: string };
+    const deleted = database.deleteHunt(huntId);
+    return { deleted };
+  });
+
+  app.post("/api/hunts/:huntId/rounds", async (request, reply) => {
+    if (!requireBrowserSession(request, reply, config)) return;
+    const { huntId } = request.params as { huntId: string };
+    if (!database.getHunt(huntId)) {
+      return reply.code(404).send({ error: "hunt_not_found" });
+    }
+    const body = request.body as Record<string, unknown> | null;
+    const name = requiredString(body?.name, "name");
+    const round = database.createRound(huntId, name);
+    return { round };
+  });
+
+  app.patch("/api/rounds/:roundId", async (request, reply) => {
+    if (!requireBrowserSession(request, reply, config)) return;
+    const { roundId } = request.params as { roundId: string };
+    const body = request.body as Record<string, unknown> | null;
+    const name = body?.name !== undefined ? requiredString(body.name, "name") : undefined;
+    const round = name !== undefined ? database.renameRound(roundId, name) : database.getRound(roundId);
+    if (!round) return reply.code(404).send({ error: "round_not_found" });
+    return { round };
+  });
+
+  app.delete("/api/rounds/:roundId", async (request, reply) => {
+    if (!requireBrowserSession(request, reply, config)) return;
+    const { roundId } = request.params as { roundId: string };
+    const deleted = database.deleteRound(roundId);
+    return { deleted };
+  });
+
+  app.post("/api/rounds/:roundId/puzzles", async (request, reply) => {
+    if (!requireBrowserSession(request, reply, config)) return;
+    const { roundId } = request.params as { roundId: string };
+    if (!database.getRound(roundId)) {
+      return reply.code(404).send({ error: "round_not_found" });
+    }
+    const body = request.body as Record<string, unknown> | null;
+    const title = requiredString(body?.title, "title");
+    const boardId = nullableString(body?.boardId, "board_id");
+    if (boardId !== null && !database.getBoard(boardId)) {
+      return reply.code(400).send({ error: "invalid_board_id" });
+    }
+    const puzzle = database.createPuzzle(roundId, title, boardId);
+    return { puzzle };
+  });
+
+  app.patch("/api/puzzles/:puzzleId", async (request, reply) => {
+    if (!requireBrowserSession(request, reply, config)) return;
+    const { puzzleId } = request.params as { puzzleId: string };
+    if (!database.getPuzzle(puzzleId)) {
+      return reply.code(404).send({ error: "puzzle_not_found" });
+    }
+    const body = request.body as Record<string, unknown> | null;
+    const updates: {
+      title?: string;
+      status?: PuzzleStatus;
+      answer?: string | null;
+      notes?: string;
+      roundId?: string;
+      boardId?: string | null;
+    } = {};
+
+    if (body?.title !== undefined) {
+      updates.title = requiredString(body.title, "title");
+    }
+    if (body?.status !== undefined) {
+      const status = requiredString(body.status, "status") as PuzzleStatus;
+      if (!["new", "in_progress", "stuck", "solved"].includes(status)) {
+        return reply.code(400).send({ error: "invalid_status" });
+      }
+      updates.status = status;
+    }
+    if (body?.answer !== undefined) {
+      updates.answer = nullableString(body.answer, "answer");
+    }
+    if (body?.notes !== undefined) {
+      updates.notes = typeof body.notes === "string" ? body.notes : "";
+    }
+    if (body?.roundId !== undefined) {
+      const rId = requiredString(body.roundId, "round_id");
+      if (!database.getRound(rId)) {
+        return reply.code(404).send({ error: "round_not_found" });
+      }
+      updates.roundId = rId;
+    }
+    if (body?.boardId !== undefined) {
+      const bId = nullableString(body.boardId, "board_id");
+      if (bId !== null && !database.getBoard(bId)) {
+        return reply.code(400).send({ error: "invalid_board_id" });
+      }
+      updates.boardId = bId;
+    }
+
+    const puzzle = database.updatePuzzle(puzzleId, updates);
+    if (!puzzle) return reply.code(404).send({ error: "puzzle_not_found" });
+    return { puzzle };
+  });
+
+  app.delete("/api/puzzles/:puzzleId", async (request, reply) => {
+    if (!requireBrowserSession(request, reply, config)) return;
+    const { puzzleId } = request.params as { puzzleId: string };
+    const deleted = database.deletePuzzle(puzzleId);
+    return { deleted };
   });
 
   app.post("/api/internal/boards/ensure", async (request, reply) => {

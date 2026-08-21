@@ -1,3 +1,36 @@
+export type PuzzleStatus = "new" | "in_progress" | "stuck" | "solved";
+
+export interface HuntRecord {
+  id: string;
+  name: string;
+  createdAt: string;
+}
+
+export interface RoundRecord {
+  id: string;
+  huntId: string;
+  name: string;
+  orderIndex: number;
+}
+
+export interface PuzzleRecord {
+  id: string;
+  roundId: string;
+  boardId: string | null;
+  title: string;
+  status: PuzzleStatus;
+  answer: string | null;
+  notes: string;
+  orderIndex: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface HuntOverview {
+  hunt: HuntRecord;
+  rounds: Array<RoundRecord & { puzzles: PuzzleRecord[] }>;
+}
+
 export interface BoardIdentity {
   guildId: string;
   guildName: string;

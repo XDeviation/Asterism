@@ -47,7 +47,13 @@ export function HomeScreen({ onUnauthorized }: { onUnauthorized: () => void }) {
       </header>
       <section className="home-content">
         <div className="home-heading">
-          <div><p className="eyebrow">PUZZLE HUNT</p><h1>队伍白板</h1></div>
+          <div>
+            <p className="eyebrow">PUZZLE HUNT</p>
+            <h1>队伍白板</h1>
+            <a href="/hunts" className="ghost-button" style={{ display: 'inline-block', marginTop: '12px', textDecoration: 'none' }}>
+              Hunt 看板
+            </a>
+          </div>
           <input
             className="board-filter"
             type="search"
