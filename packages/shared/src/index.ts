@@ -198,6 +198,12 @@ export interface ExtractionTableRecord {
   targetId: string;
   columns: ExtractionColumn[];
   rows: ExtractionRow[];
+  /**
+   * Univer workbook snapshot (IWorkbookData) serialized as JSON. When present,
+   * the client renders a real spreadsheet from this snapshot; when absent, the
+   * client falls back to (and migrates) the legacy `columns`/`rows` model.
+   */
+  snapshot?: unknown;
   createdAt: string;
   updatedAt: string;
 }
@@ -212,4 +218,8 @@ export interface CreateExtractionTableRequest {
 export interface UpdateExtractionTableRequest {
   columns?: ExtractionColumn[];
   rows?: ExtractionRow[];
+  /**
+   * Univer workbook snapshot. Supplied by the real-spreadsheet editor on save.
+   */
+  snapshot?: unknown;
 }

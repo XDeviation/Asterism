@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import type {
   BoardEvent,
   CanvasDocument,
@@ -16,8 +16,13 @@ import {
   createExtractionTable,
 } from "../api.js";
 import { ExcalidrawBoard } from "../components/ExcalidrawBoard.js";
-import { ExtractionTable } from "../components/ExtractionTable.js";
 import { MessageSidebar } from "../components/MessageSidebar.js";
+
+const UniverSheet = lazy(() =>
+  import("../components/UniverSheet.js").then((module) => ({
+    default: module.UniverSheet,
+  })),
+);
 
 const STATUS_LABELS: Record<PuzzleStatus, string> = {
   new: "新题",
@@ -231,11 +236,14 @@ export function PuzzleScreen({
       ) : tableLoading ? (
         <div className="canvas-loading">正在加载提取表…</div>
       ) : extractionTable ? (
-        <ExtractionTable
-          tableRecord={extractionTable}
-          collaborationRoom={canvas?.collaboration}
-          onUnauthorized={onUnauthorized}
-        />
+        <Suspense fallback={<div className="canvas-loading">正在加载电子表格…</div>}>
+          <UniverSheet
+            key={extractionTable.id}
+            tableRecord={extractionTable}
+            collaborationRoom={canvas?.collaboration}
+            onUnauthorized={onUnauthorized}
+          />
+        </Suspense>
       ) : (
         <div className="empty-extraction-table-prompt">
           <h3>本题暂未创建提取表</h3>

@@ -510,10 +510,19 @@ export async function buildServer(config: AppConfig): Promise<FastifyInstance> {
     const rows = Array.isArray(body?.rows)
       ? (body.rows as ExtractionRow[])
       : undefined;
+    const snapshot =
+      body?.snapshot !== undefined && body?.snapshot !== null && typeof body.snapshot === "object" && !Array.isArray(body.snapshot)
+        ? body.snapshot
+        : undefined;
 
-    const updates: { columns?: ExtractionColumn[]; rows?: ExtractionRow[] } = {};
+    const updates: {
+      columns?: ExtractionColumn[];
+      rows?: ExtractionRow[];
+      snapshot?: unknown;
+    } = {};
     if (columns !== undefined) updates.columns = columns;
     if (rows !== undefined) updates.rows = rows;
+    if (snapshot !== undefined) updates.snapshot = snapshot;
 
     const table = database.updateExtractionTable(id, updates);
     if (!table) return reply.code(404).send({ error: "extraction_table_not_found" });

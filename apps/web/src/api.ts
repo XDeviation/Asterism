@@ -185,7 +185,7 @@ export async function createExtractionTable(
 
 export async function updateExtractionTable(
   id: string,
-  updates: { columns?: ExtractionColumn[]; rows?: ExtractionRow[] },
+  updates: { columns?: ExtractionColumn[]; rows?: ExtractionRow[]; snapshot?: unknown },
 ): Promise<ExtractionTableRecord> {
   const result = await request<{ table: ExtractionTableRecord }>(
     `/api/extraction-tables/${encodeURIComponent(id)}`,

@@ -115,6 +115,7 @@ interface ExtractionTableRow {
   target_id: string;
   columns_json: string;
   rows_json: string;
+  snapshot_json: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -179,7 +180,7 @@ function puzzleFromRow(row: PuzzleRow): PuzzleRecord {
 }
 
 function extractionTableFromRow(row: ExtractionTableRow): ExtractionTableRecord {
-  return {
+  const record: ExtractionTableRecord = {
     id: row.id,
     targetType: row.target_type as ExtractionTargetType,
     targetId: row.target_id,
@@ -188,6 +189,10 @@ function extractionTableFromRow(row: ExtractionTableRow): ExtractionTableRecord 
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
+  if (row.snapshot_json) {
+    record.snapshot = JSON.parse(row.snapshot_json);
+  }
+  return record;
 }
 
 function elementIdentity(value: unknown): { id: string; version: number; versionNonce: number } | null {
@@ -389,6 +394,7 @@ export class AppDatabase {
         target_id TEXT NOT NULL,
         columns_json TEXT NOT NULL,
         rows_json TEXT NOT NULL,
+        snapshot_json TEXT,
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL,
         UNIQUE (target_type, target_id)
@@ -397,6 +403,11 @@ export class AppDatabase {
       INSERT OR IGNORE INTO canvases (board_id, revision, scene_json, updated_at)
       SELECT id, 0, '{"elements":[],"appState":{}}', created_at FROM boards;
     `);
+
+    const extractionColumns = this.db.pragma("table_info(extraction_tables)") as Array<{ name: string }>;
+    if (!extractionColumns.some((column) => column.name === "snapshot_json")) {
+      this.db.exec("ALTER TABLE extraction_tables ADD COLUMN snapshot_json TEXT");
+    }
   }
 
   ensureBoard(identity: BoardIdentity): { board: BoardRecord; created: boolean } {
@@ -978,27 +989,38 @@ export class AppDatabase {
 
   updateExtractionTable(
     id: string,
-    updates: { columns?: ExtractionColumn[]; rows?: ExtractionRow[] }
+    updates: { columns?: ExtractionColumn[]; rows?: ExtractionRow[]; snapshot?: unknown }
   ): ExtractionTableRecord | null {
     const existing = this.getExtractionTableById(id);
     if (!existing) return null;
 
     const columns = updates.columns ?? existing.columns;
     const rows = updates.rows ?? existing.rows;
+    const snapshot = updates.snapshot !== undefined ? updates.snapshot : existing.snapshot;
     const updatedAt = new Date().toISOString();
 
     this.db.prepare(`
       UPDATE extraction_tables
-      SET columns_json = ?, rows_json = ?, updated_at = ?
+      SET columns_json = ?, rows_json = ?, snapshot_json = ?, updated_at = ?
       WHERE id = ?
-    `).run(JSON.stringify(columns), JSON.stringify(rows), updatedAt, id);
+    `).run(
+      JSON.stringify(columns),
+      JSON.stringify(rows),
+      snapshot === undefined || snapshot === null ? null : JSON.stringify(snapshot),
+      updatedAt,
+      id,
+    );
 
-    return {
+    const result: ExtractionTableRecord = {
       ...existing,
       columns,
       rows,
       updatedAt,
     };
+    if (snapshot !== undefined && snapshot !== null) {
+      result.snapshot = snapshot;
+    }
+    return result;
   }
 
   deleteExtractionTable(id: string): boolean {

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import type {
   HuntRecord,
   HuntOverview,
@@ -14,7 +14,12 @@ import {
   getExtractionTable,
   createExtractionTable,
 } from "../api.js";
-import { ExtractionTable } from "../components/ExtractionTable.js";
+
+const UniverSheet = lazy(() =>
+  import("../components/UniverSheet.js").then((module) => ({
+    default: module.UniverSheet,
+  })),
+);
 
 const STATUS_LABELS: Record<PuzzleStatus, string> = {
   new: "新题",
@@ -246,7 +251,9 @@ export function HuntScreen({
                 {tableModalLoading ? (
                   <p className="muted">正在加载…</p>
                 ) : activeCategoryTable ? (
-                  <ExtractionTable tableRecord={activeCategoryTable.record} />
+                  <Suspense fallback={<p className="muted">正在加载电子表格…</p>}>
+                    <UniverSheet key={activeCategoryTable.record.id} tableRecord={activeCategoryTable.record} />
+                  </Suspense>
                 ) : null}
               </div>
             </div>
