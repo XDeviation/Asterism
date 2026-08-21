@@ -1,7 +1,6 @@
 import { lazy, StrictMode, Suspense, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { ApiRequestError, getSession, getPuzzleIdByBoard } from "./api.js";
-import { HomeScreen } from "./screens/HomeScreen.js";
 import { LoginScreen } from "./screens/LoginScreen.js";
 import "./styles.css";
 
@@ -93,7 +92,7 @@ function App() {
       </Suspense>
     );
   }
-  const huntMatch = /^\/hunts(?:\/([^/]+))?$/.exec(window.location.pathname);
+  const huntMatch = /^(?:\/|\/hunts)(?:\/([^/]+))?$/.exec(window.location.pathname);
   if (huntMatch) {
     return (
       <Suspense fallback={<div className="loading">正在加载 Hunt 看板…</div>}>
@@ -104,7 +103,7 @@ function App() {
       </Suspense>
     );
   }
-  return <HomeScreen onUnauthorized={() => setAuthenticated(false)} />;
+  return <div className="loading">页面不存在。</div>;
 }
 
 createRoot(document.getElementById("root")!).render(

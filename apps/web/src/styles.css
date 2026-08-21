@@ -345,3 +345,17 @@ a { color: inherit; }
 .puzzle-meta-inputs .notes-input {
   width: 180px;
 }
+
+/* Unified status badges (hunt board + puzzle page) */
+.status-badge {
+  display: inline-block;
+  padding: 2px 9px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  border: 1px solid transparent;
+}
+.status-badge.status-new { color: #8b949e; background: #21262d; border-color: #30363d; }
+.status-badge.status-in_progress { color: #58a6ff; background: rgba(88, 166, 255, .12); border-color: rgba(88, 166, 255, .35); }
+.status-badge.status-stuck { color: #f0883e; background: rgba(240, 136, 62, .12); border-color: rgba(240, 136, 62, .35); }
+.status-badge.status-solved { color: #3fb950; background: rgba(63, 185, 80, .12); border-color: rgba(63, 185, 80, .35); }
