@@ -32,6 +32,26 @@ import {
 type SyncStatus = "connecting" | "saved" | "saving" | "error";
 type SceneMessageType = "SCENE_INIT" | "SCENE_UPDATE";
 
+const USERNAME_STORAGE_KEY = "asterism.displayName";
+const DEFAULT_USERNAME = "队友";
+
+function loadDisplayName(): string {
+  try {
+    const stored = localStorage.getItem(USERNAME_STORAGE_KEY)?.trim();
+    return stored ? stored.slice(0, 24) : DEFAULT_USERNAME;
+  } catch {
+    return DEFAULT_USERNAME;
+  }
+}
+
+function saveDisplayName(name: string): void {
+  try {
+    localStorage.setItem(USERNAME_STORAGE_KEY, name);
+  } catch {
+    // Storage unavailable (private mode etc.); keep the in-memory name.
+  }
+}
+
 interface LocalScene {
   elements: readonly OrderedExcalidrawElement[];
   appState: AppState;
@@ -158,6 +178,7 @@ export function ExcalidrawBoard({
 }) {
   const [status, setStatus] = useState<SyncStatus>("connecting");
   const [apiReady, setApiReady] = useState(false);
+  const [displayName, setDisplayName] = useState<string>(loadDisplayName);
   const apiRef = useRef<ExcalidrawImperativeAPI | null>(null);
   const socketRef = useRef<Socket | null>(null);
   const latestScene = useRef<LocalScene | null>(null);
@@ -575,13 +596,28 @@ export function ExcalidrawBoard({
         pointer: payload.pointer,
         button: payload.button,
         selectedElementIds: apiRef.current?.getAppState().selectedElementIds ?? {},
-        username: "队友",
+        username: displayName,
       },
     }, true);
-  }, [sendEncrypted]);
+  }, [displayName, sendEncrypted]);
+
+  const handleDisplayNameChange = useCallback((raw: string) => {
+    const next = raw.trim().slice(0, 24) || DEFAULT_USERNAME;
+    setDisplayName(next);
+    saveDisplayName(next);
+  }, []);
 
   return (
     <div className="excalidraw-board">
+      <label className="display-name-editor" title="白板上的显示名字">
+        <span>我的名字</span>
+        <input
+          value={displayName}
+          maxLength={24}
+          onChange={(event) => handleDisplayNameChange(event.target.value)}
+          placeholder={DEFAULT_USERNAME}
+        />
+      </label>
       <Excalidraw
         initialData={initialData}
         excalidrawAPI={(api) => {
@@ -600,7 +636,7 @@ export function ExcalidrawBoard({
         onPointerUpdate={handlePointerUpdate}
         isCollaborating
         langCode="zh-CN"
-        name="Asterism"
+        name={displayName}
       />
       <div className={`canvas-sync-status ${status}`} aria-live="polite">
         {status === "saved"
