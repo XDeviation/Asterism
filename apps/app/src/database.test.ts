@@ -195,18 +195,19 @@ describe("AppDatabase", () => {
     db.close();
   });
 
-  it("manages hunts, rounds, and puzzles", () => {
+  it("manages hunts, categories, and puzzles", () => {
     const db = database();
-    const hunt = db.createHunt("MH 2026");
+    const hunt = db.ensureHunt("10001", "MH 2026");
     expect(hunt.name).toBe("MH 2026");
+    expect(hunt.guildId).toBe("10001");
     expect(db.listHunts()).toHaveLength(1);
     expect(db.getHunt(hunt.id)).toEqual(hunt);
 
-    const round = db.createRound(hunt.id, "Round 1");
-    expect(round.name).toBe("Round 1");
-    expect(round.huntId).toBe(hunt.id);
+    const category = db.ensureCategory(hunt.id, "20001", "Category 1");
+    expect(category.name).toBe("Category 1");
+    expect(category.guildCategoryId).toBe("20001");
 
-    const puzzle = db.createPuzzle(round.id, "Puzzle A");
+    const puzzle = db.ensurePuzzle(hunt.id, category.id, "30001", null, "Puzzle A");
     expect(puzzle.title).toBe("Puzzle A");
     expect(puzzle.status).toBe("new");
 
@@ -225,14 +226,13 @@ describe("AppDatabase", () => {
 
     const overview = db.getHuntOverview(hunt.id);
     expect(overview?.hunt.id).toBe(hunt.id);
-    expect(overview?.rounds).toHaveLength(1);
-    expect(overview?.rounds[0]?.puzzles).toHaveLength(1);
-    expect(overview?.rounds[0]?.puzzles[0]?.title).toBe("Puzzle A");
+    expect(overview?.categories).toHaveLength(1);
+    expect(overview?.categories[0]?.category?.id).toBe(category.id);
+    expect(overview?.categories[0]?.puzzles).toHaveLength(1);
+    expect(overview?.categories[0]?.puzzles[0]?.title).toBe("Puzzle A");
 
     expect(db.deletePuzzle(puzzle.id)).toBe(true);
-    expect(db.deleteRound(round.id)).toBe(true);
-    expect(db.deleteHunt(hunt.id)).toBe(true);
-    expect(db.getHunt(hunt.id)).toBeNull();
+    expect(db.deleteCategory(category.id)).toBe(true);
     db.close();
   });
 });

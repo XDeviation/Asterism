@@ -2,23 +2,13 @@ import { useEffect, useState } from "react";
 import type {
   HuntRecord,
   HuntOverview,
-  PuzzleRecord,
   PuzzleStatus,
-  BoardSummary,
 } from "@asterism/shared";
 import {
   ApiRequestError,
   listHunts,
-  createHunt,
   getHuntOverview,
-  deleteHunt,
-  createRound,
-  deleteRound,
-  renameRound,
-  createPuzzle,
   updatePuzzle,
-  deletePuzzle,
-  listBoards,
   logout,
 } from "../api.js";
 
@@ -38,16 +28,12 @@ export function HuntScreen({
 }) {
   const [hunts, setHunts] = useState<HuntRecord[]>([]);
   const [overview, setOverview] = useState<HuntOverview | null>(null);
-  const [boards, setBoards] = useState<BoardSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    Promise.all([listHunts(), listBoards()])
-      .then(([huntsList, boardsList]) => {
-        setHunts(huntsList);
-        setBoards(boardsList);
-      })
+    listHunts()
+      .then(setHunts)
       .catch((err: unknown) => {
         if (err instanceof ApiRequestError && err.status === 401) {
           onUnauthorized();
@@ -55,8 +41,10 @@ export function HuntScreen({
           setError("基础数据加载失败。");
         }
       })
-      .finally(() => setLoading(false));
-  }, [onUnauthorized]);
+      .finally(() => {
+        if (!initialHuntId) setLoading(false);
+      });
+  }, [onUnauthorized, initialHuntId]);
 
   useEffect(() => {
     if (initialHuntId) {
@@ -76,69 +64,6 @@ export function HuntScreen({
     }
   }, [initialHuntId, onUnauthorized]);
 
-  const handleCreateHunt = async () => {
-    const name = prompt("请输入 Hunt 名称：");
-    if (!name) return;
-    try {
-      const hunt = await createHunt(name);
-      setHunts([hunt, ...hunts]);
-      window.location.href = `/hunts/${hunt.id}`;
-    } catch (err) {
-      alert("创建失败。");
-    }
-  };
-
-  const handleDeleteHunt = async (id: string) => {
-    if (!confirm("确定删除整个 Hunt 吗？")) return;
-    try {
-      await deleteHunt(id);
-      setHunts(hunts.filter((h) => h.id !== id));
-      if (initialHuntId === id) window.location.href = "/hunts";
-    } catch (err) {
-      alert("删除失败。");
-    }
-  };
-
-  const handleCreateRound = async () => {
-    if (!initialHuntId) return;
-    const name = prompt("请输入 Round 名称：");
-    if (!name) return;
-    try {
-      await createRound(initialHuntId, name);
-      const updated = await getHuntOverview(initialHuntId);
-      setOverview(updated);
-    } catch (err) {
-      alert("创建 Round 失败。");
-    }
-  };
-
-  const handleDeleteRound = async (roundId: string) => {
-    if (!confirm("确定删除该 Round 吗？")) return;
-    try {
-      await deleteRound(roundId);
-      if (initialHuntId) {
-        const updated = await getHuntOverview(initialHuntId);
-        setOverview(updated);
-      }
-    } catch (err) {
-      alert("删除 Round 失败。");
-    }
-  };
-
-  const handleCreatePuzzle = async (roundId: string) => {
-    const title = prompt("请输入题目名称：");
-    if (!title) return;
-    try {
-      await createPuzzle(roundId, title);
-      if (initialHuntId) {
-        const updated = await getHuntOverview(initialHuntId);
-        setOverview(updated);
-      }
-    } catch (err) {
-      alert("创建题目失败。");
-    }
-  };
-
   const handleUpdatePuzzle = async (puzzleId: string, updates: Parameters<typeof updatePuzzle>[1]) => {
     try {
       await updatePuzzle(puzzleId, updates);
@@ -148,19 +73,6 @@ export function HuntScreen({
       }
     } catch (err) {
       console.error(err);
-    }
-  };
-
-  const handleDeletePuzzle = async (puzzleId: string) => {
-    if (!confirm("确定删除该题目吗？")) return;
-    try {
-      await deletePuzzle(puzzleId);
-      if (initialHuntId) {
-        const updated = await getHuntOverview(initialHuntId);
-        setOverview(updated);
-      }
-    } catch (err) {
-      alert("删除题目失败。");
     }
   };
 
@@ -187,16 +99,12 @@ export function HuntScreen({
               value={initialHuntId ?? ""}
               onChange={(e) => window.location.href = e.target.value ? `/hunts/${e.target.value}` : "/hunts"}
             >
-              <option value="">选择 Hunt...</option>
+              <option value="">选择 Hunt (Server)...</option>
               {hunts.map(h => (
                 <option key={h.id} value={h.id}>{h.name}</option>
               ))}
             </select>
-            <button className="ghost-button" onClick={handleCreateHunt}>新建 Hunt</button>
           </div>
-          {overview && (
-            <button className="danger-button" onClick={() => handleDeleteHunt(overview.hunt.id)}>删除 Hunt</button>
-          )}
         </div>
 
         {loading && <p className="muted">正在加载…</p>}
@@ -206,99 +114,79 @@ export function HuntScreen({
           <div className="hunt-overview">
             <div className="overview-header">
               <h1>{overview.hunt.name}</h1>
-              <button className="ghost-button" onClick={handleCreateRound}>+ 新建 Round</button>
             </div>
 
-            {overview.rounds.map(round => (
-              <section key={round.id} className="round-section">
+            {overview.categories.map(({ category, puzzles }) => (
+              <section key={category ? category.id : "unassigned"} className="round-section">
                 <div className="round-header">
-                  <h2>{round.name}</h2>
-                  <div className="round-actions">
-                    <button className="icon-button" onClick={() => {
-                      const name = prompt("重命名 Round：", round.name);
-                      if (name) renameRound(round.id, name).then(() => { if (initialHuntId) return getHuntOverview(initialHuntId).then(setOverview); });
-                    }}>✎</button>
-                    <button className="icon-button" onClick={() => handleDeleteRound(round.id)}>✕</button>
-                  </div>
+                  <h2>{category ? category.name : "无分组"}</h2>
                 </div>
                 
-                <table className="puzzle-table">
-                  <thead>
-                    <tr>
-                      <th className="col-title">题目</th>
-                      <th className="col-status">状态</th>
-                      <th className="col-answer">答案</th>
-                      <th className="col-board">白板</th>
-                      <th className="col-notes">备注</th>
-                      <th className="col-actions"></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {round.puzzles.map(puzzle => (
-                      <tr key={puzzle.id} className={`puzzle-row status-${puzzle.status}`}>
-                        <td>
-                          <input
-                            type="text"
-                            defaultValue={puzzle.title}
-                            onBlur={(e) => e.target.value !== puzzle.title && handleUpdatePuzzle(puzzle.id, { title: e.target.value })}
-                          />
-                        </td>
-                        <td>
-                          <select
-                            value={puzzle.status}
-                            onChange={(e) => handleUpdatePuzzle(puzzle.id, { status: e.target.value as PuzzleStatus })}
-                          >
-                            {(Object.keys(STATUS_LABELS) as PuzzleStatus[]).map(s => (
-                              <option key={s} value={s}>{STATUS_LABELS[s]}</option>
-                            ))}
-                          </select>
-                        </td>
-                        <td>
-                          <input
-                            type="text"
-                            placeholder="ANSWER"
-                            defaultValue={puzzle.answer ?? ""}
-                            onBlur={(e) => e.target.value !== (puzzle.answer ?? "") && handleUpdatePuzzle(puzzle.id, { answer: e.target.value || null })}
-                          />
-                        </td>
-                        <td>
-                          <select
-                            value={puzzle.boardId ?? ""}
-                            onChange={(e) => handleUpdatePuzzle(puzzle.id, { boardId: e.target.value || null })}
-                          >
-                            <option value="">(无)</option>
-                            {boards.map(b => (
-                              <option key={b.id} value={b.id}>{b.channelName}</option>
-                            ))}
-                          </select>
-                          {puzzle.boardId && (
-                            <a href={`/boards/${puzzle.boardId}`} className="board-link" target="_blank" rel="noreferrer">↗</a>
-                          )}
-                        </td>
-                        <td>
-                          <textarea
-                            rows={1}
-                            defaultValue={puzzle.notes}
-                            onBlur={(e) => e.target.value !== puzzle.notes && handleUpdatePuzzle(puzzle.id, { notes: e.target.value })}
-                          />
-                        </td>
-                        <td>
-                          <button className="icon-button danger" onClick={() => handleDeletePuzzle(puzzle.id)}>✕</button>
-                        </td>
+                {puzzles.length > 0 ? (
+                  <table className="puzzle-table">
+                    <thead>
+                      <tr>
+                        <th className="col-title">题目</th>
+                        <th className="col-status">状态</th>
+                        <th className="col-answer">答案</th>
+                        <th className="col-board">白板</th>
+                        <th className="col-notes">备注</th>
                       </tr>
-                    ))}
-                    <tr>
-                      <td colSpan={6}>
-                        <button className="add-puzzle-button" onClick={() => handleCreatePuzzle(round.id)}>+ 新建题目</button>
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {puzzles.map(puzzle => (
+                        <tr key={puzzle.id} className={`puzzle-row status-${puzzle.status}`}>
+                          <td>
+                            <input
+                              type="text"
+                              defaultValue={puzzle.title}
+                              onBlur={(e) => e.target.value !== puzzle.title && handleUpdatePuzzle(puzzle.id, { title: e.target.value })}
+                            />
+                          </td>
+                          <td>
+                            <select
+                              value={puzzle.status}
+                              onChange={(e) => handleUpdatePuzzle(puzzle.id, { status: e.target.value as PuzzleStatus })}
+                            >
+                              {(Object.keys(STATUS_LABELS) as PuzzleStatus[]).map(s => (
+                                <option key={s} value={s}>{STATUS_LABELS[s]}</option>
+                              ))}
+                            </select>
+                          </td>
+                          <td>
+                            <input
+                              type="text"
+                              placeholder="ANSWER"
+                              defaultValue={puzzle.answer ?? ""}
+                              onBlur={(e) => e.target.value !== (puzzle.answer ?? "") && handleUpdatePuzzle(puzzle.id, { answer: e.target.value || null })}
+                            />
+                          </td>
+                          <td>
+                            {puzzle.boardId ? (
+                              <a href={`/boards/${puzzle.boardId}`} className="board-link" target="_blank" rel="noreferrer">进入白板 ↗</a>
+                            ) : (
+                              <span className="muted">(未创建白板)</span>
+                            )}
+                          </td>
+                          <td>
+                            <textarea
+                              rows={1}
+                              defaultValue={puzzle.notes}
+                              onBlur={(e) => e.target.value !== puzzle.notes && handleUpdatePuzzle(puzzle.id, { notes: e.target.value })}
+                            />
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                ) : (
+                  <p className="muted" style={{ padding: '1rem' }}>该分组下无小题。</p>
+                )}
               </section>
             ))}
           </div>
         ) : (
-          !loading && <div className="empty-state">请选择或新建一个 Hunt。</div>
+          !loading && <div className="empty-state">请选择一个 Hunt。</div>
         )}
       </section>
     </main>

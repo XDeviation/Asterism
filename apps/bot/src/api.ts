@@ -36,6 +36,18 @@ export class AppApiClient {
     return (text ? JSON.parse(text) : {}) as T;
   }
 
+  syncGuild(guildId: string, guildName: string): Promise<unknown> {
+    return this.request("POST", "/api/internal/sync/guild", { guildId, guildName });
+  }
+
+  syncCategory(guildId: string, guildCategoryId: string, name: string): Promise<unknown> {
+    return this.request("POST", "/api/internal/sync/category", { guildId, guildCategoryId, name });
+  }
+
+  syncChannel(guildId: string, guildCategoryId: string | null, channelId: string, boardId: string | null, title: string): Promise<unknown> {
+    return this.request("POST", "/api/internal/sync/channel", { guildId, guildCategoryId, channelId, boardId, title });
+  }
+
   ensureBoard(identity: EnsureBoardRequest): Promise<EnsureBoardResponse> {
     return this.request("POST", "/api/internal/boards/ensure", identity);
   }

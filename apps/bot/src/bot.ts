@@ -89,6 +89,25 @@ export class AsterismBot {
       void this.onReady();
     });
 
+    this.client.on(Events.GuildCreate, (guild) => {
+      if (guild.id === this.config.guildId) {
+        this.api.syncGuild(guild.id, guild.name).catch(console.error);
+      }
+    });
+
+    this.client.on(Events.ChannelCreate, (channel) => {
+      if (!("guild" in channel) || channel.guild.id !== this.config.guildId) return;
+      if (channel.type === ChannelType.GuildCategory) {
+        this.api.syncCategory(channel.guild.id, channel.id, channel.name).catch(console.error);
+      } else if (isSyncableChannel(channel)) {
+        const boardId = this.database.getBoardId(channel.guild.id, channel.id);
+        const categoryId = channel.parent?.type === ChannelType.GuildCategory ? channel.parent.id : null;
+        if (boardId) {
+          this.api.syncChannel(channel.guild.id, categoryId, channel.id, boardId, channel.name).catch(console.error);
+        }
+      }
+    });
+
     this.client.on(Events.InteractionCreate, (interaction) => {
       if (interaction.isChatInputCommand() && interaction.commandName === "board") {
         void this.handleBoardCommand(interaction);
@@ -157,6 +176,14 @@ export class AsterismBot {
     try {
       const response = await this.api.ensureBoard(boardIdentity(interaction.channel));
       this.database.saveMapping(response.board);
+      const identity = boardIdentity(interaction.channel);
+      await this.api.syncChannel(
+        identity.guildId,
+        identity.categoryId,
+        identity.channelId,
+        response.board.id,
+        identity.channelName
+      );
       await interaction.editReply(
         `${response.created ? "已创建" : "当前频道的"}白板：${response.boardUrl}`,
       );

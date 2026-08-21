@@ -5,7 +5,6 @@ import type {
   CanvasScene,
   SaveCanvasResponse,
   HuntRecord,
-  RoundRecord,
   PuzzleRecord,
   PuzzleStatus,
   HuntOverview,
@@ -116,75 +115,8 @@ export async function listHunts(): Promise<HuntRecord[]> {
   return result.hunts;
 }
 
-export async function createHunt(name: string): Promise<HuntRecord> {
-  const result = await request<{ hunt: HuntRecord }>("/api/hunts", {
-    method: "POST",
-    body: JSON.stringify({ name }),
-  });
-  return result.hunt;
-}
-
 export async function getHuntOverview(huntId: string): Promise<HuntOverview> {
   return request<HuntOverview>(`/api/hunts/${encodeURIComponent(huntId)}`);
-}
-
-export async function deleteHunt(huntId: string): Promise<boolean> {
-  const result = await request<{ deleted: boolean }>(
-    `/api/hunts/${encodeURIComponent(huntId)}`,
-    { method: "DELETE" },
-  );
-  return result.deleted;
-}
-
-export async function createRound(
-  huntId: string,
-  name: string,
-): Promise<RoundRecord> {
-  const result = await request<{ round: RoundRecord }>(
-    `/api/hunts/${encodeURIComponent(huntId)}/rounds`,
-    {
-      method: "POST",
-      body: JSON.stringify({ name }),
-    },
-  );
-  return result.round;
-}
-
-export async function renameRound(
-  roundId: string,
-  name?: string,
-): Promise<RoundRecord> {
-  const result = await request<{ round: RoundRecord }>(
-    `/api/rounds/${encodeURIComponent(roundId)}`,
-    {
-      method: "PATCH",
-      body: JSON.stringify({ name }),
-    },
-  );
-  return result.round;
-}
-
-export async function deleteRound(roundId: string): Promise<boolean> {
-  const result = await request<{ deleted: boolean }>(
-    `/api/rounds/${encodeURIComponent(roundId)}`,
-    { method: "DELETE" },
-  );
-  return result.deleted;
-}
-
-export async function createPuzzle(
-  roundId: string,
-  title: string,
-  boardId?: string | null,
-): Promise<PuzzleRecord> {
-  const result = await request<{ puzzle: PuzzleRecord }>(
-    `/api/rounds/${encodeURIComponent(roundId)}/puzzles`,
-    {
-      method: "POST",
-      body: JSON.stringify({ title, boardId }),
-    },
-  );
-  return result.puzzle;
 }
 
 export async function updatePuzzle(
@@ -194,8 +126,6 @@ export async function updatePuzzle(
     status?: PuzzleStatus;
     answer?: string | null;
     notes?: string;
-    roundId?: string;
-    boardId?: string | null;
   },
 ): Promise<PuzzleRecord> {
   const result = await request<{ puzzle: PuzzleRecord }>(
@@ -206,12 +136,4 @@ export async function updatePuzzle(
     },
   );
   return result.puzzle;
-}
-
-export async function deletePuzzle(puzzleId: string): Promise<boolean> {
-  const result = await request<{ deleted: boolean }>(
-    `/api/puzzles/${encodeURIComponent(puzzleId)}`,
-    { method: "DELETE" },
-  );
-  return result.deleted;
 }

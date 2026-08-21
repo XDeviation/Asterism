@@ -17,7 +17,7 @@ import {
   type SyncedMessage,
   type PuzzleStatus,
   type HuntRecord,
-  type RoundRecord,
+  type CategoryRecord,
   type PuzzleRecord,
   type HuntOverview,
 } from "@asterism/shared";
@@ -77,26 +77,30 @@ interface CanvasFileRow {
 
 interface HuntRow {
   id: string;
+  guild_id: string;
   name: string;
   created_at: string;
 }
 
-interface RoundRow {
+interface CategoryRow {
   id: string;
   hunt_id: string;
+  guild_category_id: string;
   name: string;
-  order_index: number;
+  board_id: string | null;
+  created_at: string;
 }
 
 interface PuzzleRow {
   id: string;
-  round_id: string;
+  hunt_id: string;
+  category_id: string | null;
+  channel_id: string | null;
   board_id: string | null;
   title: string;
   status: string;
   answer: string | null;
   notes: string;
-  order_index: number;
   created_at: string;
   updated_at: string;
 }
@@ -111,30 +115,33 @@ const VALID_PUZZLE_STATUSES = new Set<PuzzleStatus>([
 function huntFromRow(row: HuntRow): HuntRecord {
   return {
     id: row.id,
+    guildId: row.guild_id,
     name: row.name,
     createdAt: row.created_at,
   };
 }
 
-function roundFromRow(row: RoundRow): RoundRecord {
+function categoryFromRow(row: CategoryRow): CategoryRecord {
   return {
     id: row.id,
     huntId: row.hunt_id,
+    guildCategoryId: row.guild_category_id,
     name: row.name,
-    orderIndex: row.order_index,
+    boardId: row.board_id,
+    createdAt: row.created_at,
   };
 }
 
 function puzzleFromRow(row: PuzzleRow): PuzzleRecord {
   return {
     id: row.id,
-    roundId: row.round_id,
+    huntId: row.hunt_id,
+    categoryId: row.category_id,
     boardId: row.board_id,
     title: row.title,
     status: row.status as PuzzleStatus,
     answer: row.answer,
     notes: row.notes,
-    orderIndex: row.order_index,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -298,28 +305,37 @@ export class AppDatabase {
         room_key TEXT NOT NULL
       );
 
+      DROP TABLE IF EXISTS rounds;
+      DROP TABLE IF EXISTS puzzles;
+      DROP TABLE IF EXISTS categories;
+      DROP TABLE IF EXISTS hunts;
+
       CREATE TABLE IF NOT EXISTS hunts (
         id TEXT PRIMARY KEY,
+        guild_id TEXT NOT NULL UNIQUE,
         name TEXT NOT NULL,
         created_at TEXT NOT NULL
       );
 
-      CREATE TABLE IF NOT EXISTS rounds (
+      CREATE TABLE IF NOT EXISTS categories (
         id TEXT PRIMARY KEY,
         hunt_id TEXT NOT NULL REFERENCES hunts(id) ON DELETE CASCADE,
+        guild_category_id TEXT NOT NULL UNIQUE,
         name TEXT NOT NULL,
-        order_index INTEGER NOT NULL DEFAULT 0
+        board_id TEXT REFERENCES boards(id) ON DELETE SET NULL,
+        created_at TEXT NOT NULL
       );
 
       CREATE TABLE IF NOT EXISTS puzzles (
         id TEXT PRIMARY KEY,
-        round_id TEXT NOT NULL REFERENCES rounds(id) ON DELETE CASCADE,
-        board_id TEXT REFERENCES boards(id),
+        hunt_id TEXT NOT NULL REFERENCES hunts(id) ON DELETE CASCADE,
+        category_id TEXT REFERENCES categories(id) ON DELETE CASCADE,
+        channel_id TEXT UNIQUE,
+        board_id TEXT REFERENCES boards(id) ON DELETE SET NULL,
         title TEXT NOT NULL,
         status TEXT NOT NULL DEFAULT 'new',
         answer TEXT,
         notes TEXT NOT NULL DEFAULT '',
-        order_index INTEGER NOT NULL DEFAULT 0,
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL
       );
@@ -685,114 +701,133 @@ export class AppDatabase {
     })(images);
   }
 
-  createHunt(name: string): HuntRecord {
+  ensureHunt(guildId: string, name: string): HuntRecord {
+    const existing = this.db.prepare("SELECT * FROM hunts WHERE guild_id = ?").get(guildId) as HuntRow | undefined;
+    if (existing) {
+      if (existing.name !== name) {
+        this.db.prepare("UPDATE hunts SET name = ? WHERE id = ?").run(name, existing.id);
+        existing.name = name;
+      }
+      return huntFromRow(existing);
+    }
     const id = randomUUID();
     const createdAt = new Date().toISOString();
-    this.db.prepare(`
-      INSERT INTO hunts (id, name, created_at)
-      VALUES (?, ?, ?)
-    `).run(id, name, createdAt);
-    return { id, name, createdAt };
+    this.db.prepare(
+      "INSERT INTO hunts (id, guild_id, name, created_at) VALUES (?, ?, ?, ?)"
+    ).run(id, guildId, name, createdAt);
+    return { id, guildId, name, createdAt };
   }
 
   listHunts(): HuntRecord[] {
-    const rows = this.db.prepare(`
-      SELECT * FROM hunts ORDER BY created_at DESC
-    `).all() as HuntRow[];
+    const rows = this.db.prepare("SELECT * FROM hunts ORDER BY created_at DESC").all() as HuntRow[];
     return rows.map(huntFromRow);
   }
 
   getHunt(id: string): HuntRecord | null {
-    const row = this.db.prepare(`
-      SELECT * FROM hunts WHERE id = ?
-    `).get(id) as HuntRow | undefined;
+    const row = this.db.prepare("SELECT * FROM hunts WHERE id = ?").get(id) as HuntRow | undefined;
     return row ? huntFromRow(row) : null;
   }
 
-  deleteHunt(id: string): boolean {
-    const result = this.db.prepare(`
-      DELETE FROM hunts WHERE id = ?
-    `).run(id);
-    return result.changes > 0;
-  }
-
-  createRound(huntId: string, name: string): RoundRecord {
+  getHuntOverview(huntId: string): HuntOverview | null {
     const hunt = this.getHunt(huntId);
-    if (!hunt) throw new Error("hunt_not_found");
+    if (!hunt) return null;
+
+    const categoryRows = this.db.prepare(
+      "SELECT * FROM categories WHERE hunt_id = ? ORDER BY created_at ASC"
+    ).all(huntId) as CategoryRow[];
+
+    const puzzleRows = this.db.prepare(
+      "SELECT * FROM puzzles WHERE hunt_id = ? ORDER BY created_at ASC"
+    ).all(huntId) as PuzzleRow[];
+
+    const puzzlesByCategory = new Map<string | null, PuzzleRecord[]>();
+    for (const pRow of puzzleRows) {
+      const p = puzzleFromRow(pRow);
+      const key = p.categoryId;
+      const list = puzzlesByCategory.get(key) ?? [];
+      list.push(p);
+      puzzlesByCategory.set(key, list);
+    }
+
+    const categories: Array<{ category: CategoryRecord | null; puzzles: PuzzleRecord[] }> = categoryRows.map((cRow) => {
+      const category = categoryFromRow(cRow);
+      return {
+        category,
+        puzzles: puzzlesByCategory.get(category.id) ?? [],
+      };
+    });
+
+    const unassignedPuzzles = puzzlesByCategory.get(null) ?? [];
+    if (unassignedPuzzles.length > 0) {
+      categories.push({ category: null, puzzles: unassignedPuzzles });
+    }
+
+    return { hunt, categories };
+  }
+
+  ensureCategory(huntId: string, guildCategoryId: string, name: string): CategoryRecord {
+    const existing = this.db.prepare(
+      "SELECT * FROM categories WHERE guild_category_id = ?"
+    ).get(guildCategoryId) as CategoryRow | undefined;
+    if (existing) {
+      if (existing.name !== name || existing.hunt_id !== huntId) {
+        this.db.prepare("UPDATE categories SET name = ?, hunt_id = ? WHERE id = ?").run(name, huntId, existing.id);
+        existing.name = name;
+        existing.hunt_id = huntId;
+      }
+      return categoryFromRow(existing);
+    }
     const id = randomUUID();
-    const maxOrderRow = this.db.prepare(`
-      SELECT COALESCE(MAX(order_index), -1) AS max_order FROM rounds WHERE hunt_id = ?
-    `).get(huntId) as { max_order: number };
-    const orderIndex = maxOrderRow.max_order + 1;
-    this.db.prepare(`
-      INSERT INTO rounds (id, hunt_id, name, order_index)
-      VALUES (?, ?, ?, ?)
-    `).run(id, huntId, name, orderIndex);
-    return { id, huntId, name, orderIndex };
+    const createdAt = new Date().toISOString();
+    this.db.prepare(
+      "INSERT INTO categories (id, hunt_id, guild_category_id, name, created_at) VALUES (?, ?, ?, ?, ?)"
+    ).run(id, huntId, guildCategoryId, name, createdAt);
+    return { id, huntId, guildCategoryId, name, boardId: null, createdAt };
   }
 
-  getRound(id: string): RoundRecord | null {
-    const row = this.db.prepare(`
-      SELECT * FROM rounds WHERE id = ?
-    `).get(id) as RoundRow | undefined;
-    return row ? roundFromRow(row) : null;
+  updateCategory(id: string, updates: { name?: string; boardId?: string | null }): CategoryRecord | null {
+    const existing = this.db.prepare("SELECT * FROM categories WHERE id = ?").get(id) as CategoryRow | undefined;
+    if (!existing) return null;
+    const name = updates.name ?? existing.name;
+    const boardId = updates.boardId !== undefined ? updates.boardId : existing.board_id;
+    this.db.prepare("UPDATE categories SET name = ?, board_id = ? WHERE id = ?").run(name, boardId, id);
+    return categoryFromRow({ ...existing, name, board_id: boardId });
   }
 
-  renameRound(id: string, name: string): RoundRecord | null {
-    const result = this.db.prepare(`
-      UPDATE rounds SET name = ? WHERE id = ?
-    `).run(name, id);
-    if (result.changes === 0) return null;
-    return this.getRound(id);
-  }
-
-  deleteRound(id: string): boolean {
-    const result = this.db.prepare(`
-      DELETE FROM rounds WHERE id = ?
-    `).run(id);
+  deleteCategory(id: string): boolean {
+    const result = this.db.prepare("DELETE FROM categories WHERE id = ?").run(id);
     return result.changes > 0;
   }
 
-  createPuzzle(roundId: string, title: string, boardId?: string | null): PuzzleRecord {
-    const round = this.getRound(roundId);
-    if (!round) throw new Error("round_not_found");
-    const id = randomUUID();
+  ensurePuzzle(huntId: string, categoryId: string | null, channelId: string, boardId: string | null, title: string): PuzzleRecord {
+    const existing = this.db.prepare(
+      "SELECT * FROM puzzles WHERE channel_id = ?"
+    ).get(channelId) as PuzzleRow | undefined;
+    
     const now = new Date().toISOString();
-    const maxOrderRow = this.db.prepare(`
-      SELECT COALESCE(MAX(order_index), -1) AS max_order FROM puzzles WHERE round_id = ?
-    `).get(roundId) as { max_order: number };
-    const orderIndex = maxOrderRow.max_order + 1;
-    const resolvedBoardId = boardId ?? null;
-    this.db.prepare(`
-      INSERT INTO puzzles (id, round_id, board_id, title, status, answer, notes, order_index, created_at, updated_at)
-      VALUES (?, ?, ?, ?, 'new', NULL, '', ?, ?, ?)
-    `).run(id, roundId, resolvedBoardId, title, orderIndex, now, now);
-    return {
-      id,
-      roundId,
-      boardId: resolvedBoardId,
-      title,
-      status: "new",
-      answer: null,
-      notes: "",
-      orderIndex,
-      createdAt: now,
-      updatedAt: now,
-    };
+    if (existing) {
+      if (existing.title !== title || existing.hunt_id !== huntId || existing.category_id !== categoryId || existing.board_id !== boardId) {
+        this.db.prepare(
+          "UPDATE puzzles SET title = ?, hunt_id = ?, category_id = ?, board_id = ?, updated_at = ? WHERE id = ?"
+        ).run(title, huntId, categoryId, boardId, now, existing.id);
+      }
+      return puzzleFromRow({ ...existing, title, hunt_id: huntId, category_id: categoryId, board_id: boardId, updated_at: now });
+    }
+    
+    const id = randomUUID();
+    this.db.prepare(
+      "INSERT INTO puzzles (id, hunt_id, category_id, channel_id, board_id, title, status, answer, notes, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, 'new', NULL, '', ?, ?)"
+    ).run(id, huntId, categoryId, channelId, boardId, title, now, now);
+    
+    return puzzleFromRow({
+      id, hunt_id: huntId, category_id: categoryId, channel_id: channelId, board_id: boardId,
+      title, status: "new", answer: null, notes: "", created_at: now, updated_at: now
+    });
   }
 
   getPuzzle(id: string): PuzzleRecord | null {
-    const row = this.db.prepare(`
-      SELECT * FROM puzzles WHERE id = ?
-    `).get(id) as PuzzleRow | undefined;
+    const row = this.db.prepare("SELECT * FROM puzzles WHERE id = ?").get(id) as PuzzleRow | undefined;
     return row ? puzzleFromRow(row) : null;
-  }
-
-  listPuzzlesByRound(roundId: string): PuzzleRecord[] {
-    const rows = this.db.prepare(`
-      SELECT * FROM puzzles WHERE round_id = ? ORDER BY order_index ASC, created_at ASC
-    `).all(roundId) as PuzzleRow[];
-    return rows.map(puzzleFromRow);
   }
 
   updatePuzzle(
@@ -802,9 +837,9 @@ export class AppDatabase {
       status?: PuzzleStatus;
       answer?: string | null;
       notes?: string;
-      roundId?: string;
+      categoryId?: string | null;
       boardId?: string | null;
-    },
+    }
   ): PuzzleRecord | null {
     const existing = this.getPuzzle(id);
     if (!existing) return null;
@@ -817,63 +852,19 @@ export class AppDatabase {
     const status = updates.status ?? existing.status;
     const answer = updates.answer !== undefined ? updates.answer : existing.answer;
     const notes = updates.notes ?? existing.notes;
-    const roundId = updates.roundId ?? existing.roundId;
+    const categoryId = updates.categoryId !== undefined ? updates.categoryId : existing.categoryId;
     const boardId = updates.boardId !== undefined ? updates.boardId : existing.boardId;
     const updatedAt = new Date().toISOString();
 
-    this.db.prepare(`
-      UPDATE puzzles SET
-        title = ?,
-        status = ?,
-        answer = ?,
-        notes = ?,
-        round_id = ?,
-        board_id = ?,
-        updated_at = ?
-      WHERE id = ?
-    `).run(title, status, answer, notes, roundId, boardId, updatedAt, id);
+    this.db.prepare(
+      "UPDATE puzzles SET title = ?, status = ?, answer = ?, notes = ?, category_id = ?, board_id = ?, updated_at = ? WHERE id = ?"
+    ).run(title, status, answer, notes, categoryId, boardId, updatedAt, id);
 
     return this.getPuzzle(id);
   }
 
   deletePuzzle(id: string): boolean {
-    const result = this.db.prepare(`
-      DELETE FROM puzzles WHERE id = ?
-    `).run(id);
+    const result = this.db.prepare("DELETE FROM puzzles WHERE id = ?").run(id);
     return result.changes > 0;
-  }
-
-  getHuntOverview(huntId: string): HuntOverview | null {
-    const hunt = this.getHunt(huntId);
-    if (!hunt) return null;
-
-    const roundRows = this.db.prepare(`
-      SELECT * FROM rounds WHERE hunt_id = ? ORDER BY order_index ASC, id ASC
-    `).all(huntId) as RoundRow[];
-
-    const puzzleRows = this.db.prepare(`
-      SELECT puzzles.* FROM puzzles
-      JOIN rounds ON puzzles.round_id = rounds.id
-      WHERE rounds.hunt_id = ?
-      ORDER BY puzzles.order_index ASC, puzzles.created_at ASC
-    `).all(huntId) as PuzzleRow[];
-
-    const puzzlesByRound = new Map<string, PuzzleRecord[]>();
-    for (const pRow of puzzleRows) {
-      const p = puzzleFromRow(pRow);
-      const list = puzzlesByRound.get(p.roundId) ?? [];
-      list.push(p);
-      puzzlesByRound.set(p.roundId, list);
-    }
-
-    const rounds = roundRows.map((rRow) => {
-      const round = roundFromRow(rRow);
-      return {
-        ...round,
-        puzzles: puzzlesByRound.get(round.id) ?? [],
-      };
-    });
-
-    return { hunt, rounds };
   }
 }
