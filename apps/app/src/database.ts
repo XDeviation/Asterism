@@ -20,6 +20,10 @@ import {
   type CategoryRecord,
   type PuzzleRecord,
   type HuntOverview,
+  type ExtractionColumn,
+  type ExtractionRow,
+  type ExtractionTableRecord,
+  type ExtractionTargetType,
 } from "@asterism/shared";
 
 type SqliteDatabase = Database.Database;
@@ -105,6 +109,33 @@ interface PuzzleRow {
   updated_at: string;
 }
 
+interface ExtractionTableRow {
+  id: string;
+  target_type: string;
+  target_id: string;
+  columns_json: string;
+  rows_json: string;
+  created_at: string;
+  updated_at: string;
+}
+
+const DEFAULT_EXTRACTION_COLUMNS: ExtractionColumn[] = [
+  { id: "col_index", name: "#", width: 60 },
+  { id: "col_clue", name: "原文片段 / 线索", width: 220 },
+  { id: "col_extract", name: "提取字母 / 答案", width: 180 },
+  { id: "col_notes", name: "备注", width: 200 },
+];
+
+const DEFAULT_EXTRACTION_ROWS: ExtractionRow[] = Array.from({ length: 5 }, (_, i) => ({
+  id: `row-${i + 1}`,
+  cells: {
+    col_index: String(i + 1),
+    col_clue: "",
+    col_extract: "",
+    col_notes: "",
+  },
+}));
+
 const VALID_PUZZLE_STATUSES = new Set<PuzzleStatus>([
   "new",
   "in_progress",
@@ -142,6 +173,18 @@ function puzzleFromRow(row: PuzzleRow): PuzzleRecord {
     status: row.status as PuzzleStatus,
     answer: row.answer,
     notes: row.notes,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+function extractionTableFromRow(row: ExtractionTableRow): ExtractionTableRecord {
+  return {
+    id: row.id,
+    targetType: row.target_type as ExtractionTargetType,
+    targetId: row.target_id,
+    columns: JSON.parse(row.columns_json),
+    rows: JSON.parse(row.rows_json),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -338,6 +381,17 @@ export class AppDatabase {
         notes TEXT NOT NULL DEFAULT '',
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS extraction_tables (
+        id TEXT PRIMARY KEY,
+        target_type TEXT NOT NULL,
+        target_id TEXT NOT NULL,
+        columns_json TEXT NOT NULL,
+        rows_json TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        UNIQUE (target_type, target_id)
       );
 
       INSERT OR IGNORE INTO canvases (board_id, revision, scene_json, updated_at)
@@ -875,6 +929,80 @@ export class AppDatabase {
 
   deletePuzzle(id: string): boolean {
     const result = this.db.prepare("DELETE FROM puzzles WHERE id = ?").run(id);
+    return result.changes > 0;
+  }
+
+  getExtractionTable(targetType: ExtractionTargetType, targetId: string): ExtractionTableRecord | null {
+    const row = this.db.prepare(
+      "SELECT * FROM extraction_tables WHERE target_type = ? AND target_id = ?"
+    ).get(targetType, targetId) as ExtractionTableRow | undefined;
+    return row ? extractionTableFromRow(row) : null;
+  }
+
+  getExtractionTableById(id: string): ExtractionTableRecord | null {
+    const row = this.db.prepare(
+      "SELECT * FROM extraction_tables WHERE id = ?"
+    ).get(id) as ExtractionTableRow | undefined;
+    return row ? extractionTableFromRow(row) : null;
+  }
+
+  createExtractionTable(
+    targetType: ExtractionTargetType,
+    targetId: string,
+    columns?: ExtractionColumn[],
+    rows?: ExtractionRow[]
+  ): ExtractionTableRecord {
+    const existing = this.getExtractionTable(targetType, targetId);
+    if (existing) return existing;
+
+    const id = randomUUID();
+    const cols = columns ?? DEFAULT_EXTRACTION_COLUMNS;
+    const rws = rows ?? DEFAULT_EXTRACTION_ROWS;
+    const now = new Date().toISOString();
+
+    this.db.prepare(`
+      INSERT INTO extraction_tables (id, target_type, target_id, columns_json, rows_json, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).run(id, targetType, targetId, JSON.stringify(cols), JSON.stringify(rws), now, now);
+
+    return {
+      id,
+      targetType,
+      targetId,
+      columns: cols,
+      rows: rws,
+      createdAt: now,
+      updatedAt: now,
+    };
+  }
+
+  updateExtractionTable(
+    id: string,
+    updates: { columns?: ExtractionColumn[]; rows?: ExtractionRow[] }
+  ): ExtractionTableRecord | null {
+    const existing = this.getExtractionTableById(id);
+    if (!existing) return null;
+
+    const columns = updates.columns ?? existing.columns;
+    const rows = updates.rows ?? existing.rows;
+    const updatedAt = new Date().toISOString();
+
+    this.db.prepare(`
+      UPDATE extraction_tables
+      SET columns_json = ?, rows_json = ?, updated_at = ?
+      WHERE id = ?
+    `).run(JSON.stringify(columns), JSON.stringify(rows), updatedAt, id);
+
+    return {
+      ...existing,
+      columns,
+      rows,
+      updatedAt,
+    };
+  }
+
+  deleteExtractionTable(id: string): boolean {
+    const result = this.db.prepare("DELETE FROM extraction_tables WHERE id = ?").run(id);
     return result.changes > 0;
   }
 }

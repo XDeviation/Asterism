@@ -3,6 +3,7 @@ import type {
   HuntRecord,
   HuntOverview,
   PuzzleStatus,
+  ExtractionTableRecord,
 } from "@asterism/shared";
 import {
   ApiRequestError,
@@ -10,7 +11,10 @@ import {
   getHuntOverview,
   updatePuzzle,
   logout,
+  getExtractionTable,
+  createExtractionTable,
 } from "../api.js";
+import { ExtractionTable } from "../components/ExtractionTable.js";
 
 const STATUS_LABELS: Record<PuzzleStatus, string> = {
   new: "新题",
@@ -30,6 +34,12 @@ export function HuntScreen({
   const [overview, setOverview] = useState<HuntOverview | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [activeCategoryTable, setActiveCategoryTable] = useState<{
+    id: string;
+    name: string;
+    record: ExtractionTableRecord;
+  } | null>(null);
+  const [tableModalLoading, setTableModalLoading] = useState(false);
 
   useEffect(() => {
     listHunts()
@@ -73,6 +83,21 @@ export function HuntScreen({
       }
     } catch (err) {
       console.error(err);
+    }
+  };
+
+  const handleOpenCategoryTable = async (categoryId: string, categoryName: string) => {
+    setTableModalLoading(true);
+    try {
+      let record = await getExtractionTable("category", categoryId);
+      if (!record) {
+        record = await createExtractionTable("category", categoryId);
+      }
+      setActiveCategoryTable({ id: categoryId, name: categoryName, record });
+    } catch (err) {
+      console.error("Failed to open category extraction table:", err);
+    } finally {
+      setTableModalLoading(false);
     }
   };
 
@@ -120,6 +145,17 @@ export function HuntScreen({
               <section key={category ? category.id : "unassigned"} className="round-section">
                 <div className="round-header">
                   <h2>{category ? category.name : "无分组"}</h2>
+                  {category && (
+                    <div className="round-actions">
+                      <button
+                        type="button"
+                        className="ghost-button"
+                        onClick={() => handleOpenCategoryTable(category.id, category.name)}
+                      >
+                        📊 大题提取表
+                      </button>
+                    </div>
+                  )}
                 </div>
                 
                 {puzzles.length > 0 ? (
@@ -187,6 +223,34 @@ export function HuntScreen({
           </div>
         ) : (
           !loading && <div className="empty-state">请选择一个 Hunt。</div>
+        )}
+
+        {(activeCategoryTable || tableModalLoading) && (
+          <div className="modal-overlay" onClick={() => setActiveCategoryTable(null)}>
+            <div
+              className="modal-card category-table-modal"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="modal-header">
+                <h2>{activeCategoryTable ? `${activeCategoryTable.name} — 大题提取表` : "加载提取表中…"}</h2>
+                <button
+                  type="button"
+                  className="ghost-button"
+                  onClick={() => setActiveCategoryTable(null)}
+                >
+                  ✕ 关闭
+                </button>
+              </div>
+
+              <div className="modal-body">
+                {tableModalLoading ? (
+                  <p className="muted">正在加载…</p>
+                ) : activeCategoryTable ? (
+                  <ExtractionTable tableRecord={activeCategoryTable.record} />
+                ) : null}
+              </div>
+            </div>
+          </div>
         )}
       </section>
     </main>

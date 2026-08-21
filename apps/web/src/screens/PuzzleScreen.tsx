@@ -3,11 +3,20 @@ import type {
   BoardEvent,
   CanvasDocument,
   CanvasSnapshot,
+  ExtractionTableRecord,
   PuzzleDetail,
   PuzzleStatus,
 } from "@asterism/shared";
-import { ApiRequestError, getPuzzle, getCanvas, updatePuzzle } from "../api.js";
+import {
+  ApiRequestError,
+  getPuzzle,
+  getCanvas,
+  updatePuzzle,
+  getExtractionTable,
+  createExtractionTable,
+} from "../api.js";
 import { ExcalidrawBoard } from "../components/ExcalidrawBoard.js";
+import { ExtractionTable } from "../components/ExtractionTable.js";
 import { MessageSidebar } from "../components/MessageSidebar.js";
 
 const STATUS_LABELS: Record<PuzzleStatus, string> = {
@@ -30,6 +39,9 @@ export function PuzzleScreen({
     snapshot: CanvasSnapshot;
     sequence: number;
   } | null>(null);
+  const [activeTab, setActiveTab] = useState<"canvas" | "table">("canvas");
+  const [extractionTable, setExtractionTable] = useState<ExtractionTableRecord | null>(null);
+  const [tableLoading, setTableLoading] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -58,6 +70,12 @@ export function PuzzleScreen({
             : "加载失败。");
         }
       });
+
+    setTableLoading(true);
+    getExtractionTable("puzzle", puzzleId)
+      .then((table) => setExtractionTable(table))
+      .catch((err) => console.error("Failed to load extraction table:", err))
+      .finally(() => setTableLoading(false));
   }, [puzzleId, onUnauthorized]);
 
   useEffect(() => {
@@ -96,6 +114,18 @@ export function PuzzleScreen({
     }
   };
 
+  const handleCreateExtractionTable = async () => {
+    setTableLoading(true);
+    try {
+      const created = await createExtractionTable("puzzle", puzzleId);
+      setExtractionTable(created);
+    } catch (err) {
+      console.error("Failed to create extraction table:", err);
+    } finally {
+      setTableLoading(false);
+    }
+  };
+
   if (error) return <main className="center-card"><h1>{error}</h1><a href="/">返回首页</a></main>;
   if (!detail) return <div className="loading">正在加载题目信息…</div>;
 
@@ -119,6 +149,23 @@ export function PuzzleScreen({
         </div>
 
         <div className="puzzle-meta-inputs">
+          <div className="tab-switcher">
+            <button
+              type="button"
+              className={`tab-btn ${activeTab === "canvas" ? "active" : ""}`}
+              onClick={() => setActiveTab("canvas")}
+            >
+              🎨 白板
+            </button>
+            <button
+              type="button"
+              className={`tab-btn ${activeTab === "table" ? "active" : ""}`}
+              onClick={() => setActiveTab("table")}
+            >
+              📊 提取表
+            </button>
+          </div>
+
           <div className="meta-item">
             <span className="meta-label">状态</span>
             <select
@@ -166,19 +213,41 @@ export function PuzzleScreen({
         </button>
       </header>
 
-      {detail.puzzle.boardId ? (
-        canvas ? (
-          <ExcalidrawBoard
-            boardId={detail.puzzle.boardId}
-            initialCanvas={canvas}
-            legacyIncoming={legacyIncoming}
-            onUnauthorized={onUnauthorized}
-          />
+      {activeTab === "canvas" ? (
+        detail.puzzle.boardId ? (
+          canvas ? (
+            <ExcalidrawBoard
+              boardId={detail.puzzle.boardId}
+              initialCanvas={canvas}
+              legacyIncoming={legacyIncoming}
+              onUnauthorized={onUnauthorized}
+            />
+          ) : (
+            <div className="canvas-loading">正在加载画布…</div>
+          )
         ) : (
-          <div className="canvas-loading">正在加载画布…</div>
+          <div className="canvas-loading">该题目未关联白板。</div>
         )
+      ) : tableLoading ? (
+        <div className="canvas-loading">正在加载提取表…</div>
+      ) : extractionTable ? (
+        <ExtractionTable
+          tableRecord={extractionTable}
+          collaborationRoom={canvas?.collaboration}
+          onUnauthorized={onUnauthorized}
+        />
       ) : (
-        <div className="canvas-loading">该题目未关联白板。</div>
+        <div className="empty-extraction-table-prompt">
+          <h3>本题暂未创建提取表</h3>
+          <p className="muted">提取表可以方便多名队员整理比对提取信息、字母、线索等。</p>
+          <button
+            type="button"
+            className="primary-button"
+            onClick={handleCreateExtractionTable}
+          >
+            ➕ 为本题创建提取表
+          </button>
+        </div>
       )}
 
       {!collapsed && detail.puzzle.boardId && (

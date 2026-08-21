@@ -17,6 +17,9 @@ import type {
   SyncedImage,
   SyncedMessage,
   PuzzleStatus,
+  ExtractionColumn,
+  ExtractionRow,
+  ExtractionTargetType,
 } from "@asterism/shared";
 import {
   clearSessionCookie,
@@ -441,6 +444,80 @@ export async function buildServer(config: AppConfig): Promise<FastifyInstance> {
     const puzzle = database.updatePuzzle(puzzleId, updates);
     if (!puzzle) return reply.code(404).send({ error: "puzzle_not_found" });
     return { puzzle };
+  });
+
+  app.get("/api/extraction-tables", async (request, reply) => {
+    if (!requireBrowserSession(request, reply, config)) return;
+    const { targetType, targetId } = request.query as {
+      targetType?: string;
+      targetId?: string;
+    };
+    if (
+      !targetType ||
+      !["puzzle", "category", "board"].includes(targetType) ||
+      !targetId
+    ) {
+      return reply.code(400).send({ error: "invalid_extraction_table_query" });
+    }
+    const table = database.getExtractionTable(
+      targetType as ExtractionTargetType,
+      targetId,
+    );
+    return { table };
+  });
+
+  app.get("/api/extraction-tables/:id", async (request, reply) => {
+    if (!requireBrowserSession(request, reply, config)) return;
+    const { id } = request.params as { id: string };
+    const table = database.getExtractionTableById(id);
+    if (!table) return reply.code(404).send({ error: "extraction_table_not_found" });
+    return { table };
+  });
+
+  app.post("/api/extraction-tables", async (request, reply) => {
+    if (!requireBrowserSession(request, reply, config)) return;
+    if (!requireSameOrigin(request, reply, config)) return;
+    const body = request.body as Record<string, unknown> | null;
+    const targetType = requiredString(body?.targetType, "target_type");
+    if (!["puzzle", "category", "board"].includes(targetType)) {
+      return reply.code(400).send({ error: "invalid_target_type" });
+    }
+    const targetId = requiredString(body?.targetId, "target_id");
+    const columns = Array.isArray(body?.columns)
+      ? (body.columns as ExtractionColumn[])
+      : undefined;
+    const rows = Array.isArray(body?.rows)
+      ? (body.rows as ExtractionRow[])
+      : undefined;
+
+    const table = database.createExtractionTable(
+      targetType as ExtractionTargetType,
+      targetId,
+      columns,
+      rows,
+    );
+    return { table };
+  });
+
+  app.put("/api/extraction-tables/:id", async (request, reply) => {
+    if (!requireBrowserSession(request, reply, config)) return;
+    if (!requireSameOrigin(request, reply, config)) return;
+    const { id } = request.params as { id: string };
+    const body = request.body as Record<string, unknown> | null;
+    const columns = Array.isArray(body?.columns)
+      ? (body.columns as ExtractionColumn[])
+      : undefined;
+    const rows = Array.isArray(body?.rows)
+      ? (body.rows as ExtractionRow[])
+      : undefined;
+
+    const updates: { columns?: ExtractionColumn[]; rows?: ExtractionRow[] } = {};
+    if (columns !== undefined) updates.columns = columns;
+    if (rows !== undefined) updates.rows = rows;
+
+    const table = database.updateExtractionTable(id, updates);
+    if (!table) return reply.code(404).send({ error: "extraction_table_not_found" });
+    return { table };
   });
 
   app.post("/api/internal/sync/guild", async (request, reply) => {

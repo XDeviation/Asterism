@@ -178,3 +178,38 @@ export function maxSnowflake(
   if (right === null) return left;
   return BigInt(left) >= BigInt(right) ? left : right;
 }
+
+export type ExtractionTargetType = "puzzle" | "category" | "board";
+
+export interface ExtractionColumn {
+  id: string;
+  name: string;
+  width?: number;
+}
+
+export interface ExtractionRow {
+  id: string;
+  cells: Record<string, string>;
+}
+
+export interface ExtractionTableRecord {
+  id: string;
+  targetType: ExtractionTargetType;
+  targetId: string;
+  columns: ExtractionColumn[];
+  rows: ExtractionRow[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateExtractionTableRequest {
+  targetType: ExtractionTargetType;
+  targetId: string;
+  columns?: ExtractionColumn[];
+  rows?: ExtractionRow[];
+}
+
+export interface UpdateExtractionTableRequest {
+  columns?: ExtractionColumn[];
+  rows?: ExtractionRow[];
+}

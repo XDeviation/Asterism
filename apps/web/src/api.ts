@@ -9,6 +9,10 @@ import type {
   PuzzleStatus,
   HuntOverview,
   PuzzleDetail,
+  ExtractionTableRecord,
+  ExtractionTargetType,
+  ExtractionColumn,
+  ExtractionRow,
 } from "@asterism/shared";
 
 export class ApiRequestError extends Error {
@@ -151,4 +155,44 @@ export async function getPuzzleIdByBoard(boardId: string): Promise<string | null
     if (error instanceof ApiRequestError && error.status === 404) return null;
     throw error;
   }
+}
+
+export async function getExtractionTable(
+  targetType: ExtractionTargetType,
+  targetId: string,
+): Promise<ExtractionTableRecord | null> {
+  const result = await request<{ table: ExtractionTableRecord | null }>(
+    `/api/extraction-tables?targetType=${encodeURIComponent(targetType)}&targetId=${encodeURIComponent(targetId)}`,
+  );
+  return result.table;
+}
+
+export async function createExtractionTable(
+  targetType: ExtractionTargetType,
+  targetId: string,
+  columns?: ExtractionColumn[],
+  rows?: ExtractionRow[],
+): Promise<ExtractionTableRecord> {
+  const result = await request<{ table: ExtractionTableRecord }>(
+    "/api/extraction-tables",
+    {
+      method: "POST",
+      body: JSON.stringify({ targetType, targetId, columns, rows }),
+    },
+  );
+  return result.table;
+}
+
+export async function updateExtractionTable(
+  id: string,
+  updates: { columns?: ExtractionColumn[]; rows?: ExtractionRow[] },
+): Promise<ExtractionTableRecord> {
+  const result = await request<{ table: ExtractionTableRecord }>(
+    `/api/extraction-tables/${encodeURIComponent(id)}`,
+    {
+      method: "PUT",
+      body: JSON.stringify(updates),
+    },
+  );
+  return result.table;
 }
