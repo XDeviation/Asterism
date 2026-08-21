@@ -44,8 +44,22 @@ export class AppApiClient {
     return this.request("POST", "/api/internal/sync/category", { guildId, guildCategoryId, name });
   }
 
-  syncChannel(guildId: string, guildCategoryId: string | null, channelId: string, boardId: string | null, title: string): Promise<unknown> {
-    return this.request("POST", "/api/internal/sync/channel", { guildId, guildCategoryId, channelId, boardId, title });
+  syncChannel(
+    guildId: string,
+    guildCategoryId: string | null,
+    channelId: string,
+    boardId: string | null,
+    title: string,
+    categoryName?: string | null,
+  ): Promise<unknown> {
+    return this.request("POST", "/api/internal/sync/channel", {
+      guildId,
+      guildCategoryId,
+      channelId,
+      boardId,
+      title,
+      ...(categoryName ? { categoryName } : {}),
+    });
   }
 
   ensureBoard(identity: EnsureBoardRequest): Promise<EnsureBoardResponse> {

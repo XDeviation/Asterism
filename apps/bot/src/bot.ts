@@ -103,7 +103,8 @@ export class AsterismBot {
         const boardId = this.database.getBoardId(channel.guild.id, channel.id);
         const categoryId = channel.parent?.type === ChannelType.GuildCategory ? channel.parent.id : null;
         if (boardId) {
-          this.api.syncChannel(channel.guild.id, categoryId, channel.id, boardId, channel.name).catch(console.error);
+          const categoryName = channel.parent?.type === ChannelType.GuildCategory ? channel.parent.name : null;
+          this.api.syncChannel(channel.guild.id, categoryId, channel.id, boardId, channel.name, categoryName).catch(console.error);
         }
       }
     });
@@ -183,7 +184,8 @@ export class AsterismBot {
         identity.categoryId,
         identity.channelId,
         response.board.id,
-        identity.channelName
+        identity.channelName,
+        interaction.channel.parent?.type === ChannelType.GuildCategory ? interaction.channel.parent.name : null,
       );
       await interaction.editReply(
         `${response.created ? "已创建" : "当前频道的"}白板：${response.boardUrl}`,
@@ -319,7 +321,8 @@ export class AsterismBot {
           const boardId = this.database.getBoardId(guild.id, channel.id);
           if (boardId) {
             const categoryId = channel.parent?.type === ChannelType.GuildCategory ? channel.parent.id : null;
-            await this.api.syncChannel(guild.id, categoryId, channel.id, boardId, channel.name).catch(console.error);
+            const categoryName = channel.parent?.type === ChannelType.GuildCategory ? channel.parent.name : null;
+            await this.api.syncChannel(guild.id, categoryId, channel.id, boardId, channel.name, categoryName).catch(console.error);
           }
         }
       }

@@ -476,6 +476,7 @@ export async function buildServer(config: AppConfig): Promise<FastifyInstance> {
     const channelId = requiredString(body?.channelId, "channel_id");
     const boardId = nullableString(body?.boardId, "board_id");
     const title = requiredString(body?.title, "title");
+    const categoryName = nullableString(body?.categoryName, "category_name");
 
     let hunt = database.listHunts().find(h => h.guildId === guildId);
     if (!hunt) {
@@ -484,7 +485,7 @@ export async function buildServer(config: AppConfig): Promise<FastifyInstance> {
 
     let categoryId: string | null = null;
     if (guildCategoryId) {
-      const dbCategory = database.ensureCategory(hunt.id, guildCategoryId, "Unknown Category");
+      const dbCategory = database.ensureCategory(hunt.id, guildCategoryId, categoryName ?? "Unknown Category");
       categoryId = dbCategory.id;
     }
 
